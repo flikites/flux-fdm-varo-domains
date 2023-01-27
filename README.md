@@ -5,6 +5,8 @@ DNS based Flux Domain Manager:
 
 A script that can be run locally alongside a Technitium DNS server deployment. It will automatically add your flux deployment IPs to a specified domain name and zone within your DNS server using the Technitium DNS Servers API
 
+Technitium DNS can serve authorative records for both ICANN Domains & Handshake Domains.
+
 # How It Works
 
 Use ENV variables to specify your Flux app and port. 
