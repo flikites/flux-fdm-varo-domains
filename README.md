@@ -14,8 +14,8 @@ To generate your API Key use the drop down in the top right hand corner of the w
 or follow this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token) for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
 <br>
-<br>
 ## Installation
+<br>
 
 To run this app in Ubuntu/Debain/Linux follow the below instructions:
 
@@ -31,14 +31,16 @@ The nvm installer script creates an environment entry to the login script of the
 
 `source ~/.bashrc`
 
-Insta
+Install Node using NVM:
+
+`nvm install node`
 
 Install dependencis using the command `npm install` or `yarn install`
 
 To run and start the application:
 `npm run start` or `yarn start`
 
-to run this as a docker container:
+## Docker:
 
 build image
 `docker build -t yourtag .`
