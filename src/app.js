@@ -49,12 +49,29 @@ async function checkIP() {
     }
     console.log("responseData ", responseData);
     // Find the most common IP
-    const commonIps = findMostCommonResponse(responseData);
+    const commonIps = findMostCommonResponse(responseData).map((ip) => {
+      if (ip.includes(":")) {
+        return ip.split(":")[0];
+      }
+      return ip;
+    });
     console.log(`Most common IP: ${commonIps}`);
+
     const ipRecords = await getRecords();
+
+    const badIps = ipRecords.filter((ip) => !commonIps.includes(ip));
+
     for (const ip of commonIps) {
       try {
         await createOrDeleteRecord(ip, ipRecords);
+      } catch (error) {
+        console.log(error?.message ?? error);
+      }
+    }
+    //deleting bad ips from dns record
+    for (const badIp of badIps) {
+      try {
+        await deleteRecord(badIp);
       } catch (error) {
         console.log(error?.message ?? error);
       }
@@ -66,9 +83,6 @@ async function checkIP() {
 
 async function createOrDeleteRecord(selectedIp, records = []) {
   console.log(`Selected IP: ${selectedIp}`);
-  if (selectedIp.includes(":")) {
-    selectedIp = selectedIp.split(":")[0];
-  }
   // Check if the selected IP returns success response
   const checkIpResponse = await axios.get(`http://${selectedIp}:${APP_PORT}`);
   if (checkIpResponse.status === 200) {
@@ -90,11 +104,15 @@ async function createOrDeleteRecord(selectedIp, records = []) {
   } else if (checkIpResponse.status !== 200 && records.includes(selectedIp)) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
     // Delete DNS record
-    await axios.get(
-      `${DNS_SERVER_ADDRESS}/api/zones/records/delete?token=${DNS_SERVER_TOKEN}&domain=${DOMAIN_NAME}&zone=${DNS_ZONE_NAME}&type=A&ipAddress=${selectedIp}`
-    );
-    console.log("Deleted Bad Record From Dns Record IP: ", selectedIp);
+    await deleteRecord(selectedIp);
   }
+}
+
+async function deleteRecord(ip) {
+  await axios.get(
+    `${DNS_SERVER_ADDRESS}/api/zones/records/delete?token=${DNS_SERVER_TOKEN}&domain=${DOMAIN_NAME}&zone=${DNS_ZONE_NAME}&type=A&ipAddress=${ip}`
+  );
+  console.log("Deleted Bad Record From Dns Record IP: ", ip);
 }
 
 async function getRecords() {
@@ -109,6 +127,7 @@ async function getRecords() {
 if (require.main === module) {
   checkIP();
   cron.schedule("*/5 * * * *", () => {
+    console.log("=========schedule run========");
     checkIP();
   });
 }
