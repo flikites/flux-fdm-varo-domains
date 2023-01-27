@@ -10,7 +10,7 @@ https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html
 
 To generate your API Key use the drop down in the top right hand corner of the webadmin UI titled "Create API Token"
 
-or follow this link for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
+or follow this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token) for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
 
 
