@@ -4,20 +4,38 @@ DNS based Flux Domain Manager
 
 Currently only has support for [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer)
 
-to run this app follow below instruction
+You can easily install your own self hosted DNS server using multiple methods, including docker, with this [link.](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token)
+
+
+To generate your API Key use the drop down in the top right hand corner of the webadmin UI titled "Create API Token"
+
+or follow this link for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
+
+
+To run this app in Ubuntu/Debain/Linux follow the below instructions:
 
 create a .env file or set value to your environment according to `example_env`
 
-install depedencis `npm install` or `yarn install`
+Install dependencis using the command `npm install` or `yarn install`
 
-to run
+To run and start the application:
 `npm run start` or `yarn start`
 
-to run as a docker container
+to run this as a docker container:
 
 build image
 `docker build -t yourtag .`
 
 run container
-`docker run --env-file=.env flux-fdm`
+`docker run --env-file=.env flux-dns-fdm`
 or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-fdm`
+
+#Envirornment Variables 
+
+```DNS_SERVER_ADDRESS=http://127.0.0.1:5380
+DNS_SERVER_TOKEN_NAME=your_token_name
+DNS_SERVER_TOKEN=
+DNS_ZONE_NAME=fluxvpn
+DOMAIN_NAME=try.fluxvpn
+APP_NAME=radiusraid
+APP_PORT=36025```
