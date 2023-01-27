@@ -34,8 +34,8 @@ or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-fdm`
 
 ```DNS_SERVER_ADDRESS=http://127.0.0.1:5380
 DNS_SERVER_TOKEN_NAME=your_token_name
-DNS_SERVER_TOKEN=
+DNS_SERVER_TOKEN=your_token
 DNS_ZONE_NAME=fluxvpn
 DOMAIN_NAME=try.fluxvpn
 APP_NAME=radiusraid
-APP_PORT=36025```
+APP_PORT=36025
