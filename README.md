@@ -1,9 +1,9 @@
 experimental/not tested fully
 # flux-dns-fdm
 
-DNS based Flux Domain Manager - 
+DNS based Flux Domain Manager: 
 
-Script that automatically adds your flux deployment IPs to a specified domain name within your DNS server using API
+A script that can be run locally alongside a Technitium DNS server deployment, and will automatically add your flux deployment IPs to a specified domain name and zone within your DNS server using the Technitium DNS Servers API
 
 # How It Works
 
