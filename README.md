@@ -39,6 +39,8 @@ Install dependencis using the command `npm install` or `yarn install`
 To run and start the application:
 `npm run start` or `yarn start`
 
+You can run this script automatically at whatever interval you wish using a cron job.
+
 ## Docker:
 
 build image
