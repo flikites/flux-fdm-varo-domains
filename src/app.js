@@ -1,3 +1,4 @@
+const cron = require("node-cron");
 const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
@@ -105,4 +106,9 @@ async function getRecords() {
     .map((item) => item.rData.ipAddress);
 }
 
-checkIP();
+if (require.main === module) {
+  checkIP();
+  cron.schedule("*/5 * * * *", () => {
+    checkIP();
+  });
+}
