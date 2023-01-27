@@ -7,7 +7,7 @@ const { findMostCommonResponse, getFluxNodes } = require("./utils");
 
 const WORKING_FLUX_NODE = "https://api.runonflux.io";
 const DNS_SERVER_ADDRESS =
-  process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
+  process.env.DNS_SERVER_ADDRESS ?? "http://127.0.0.1:5380";
 const DNS_ZONE_NAME = process.env.DNS_ZONE_NAME;
 const DNS_SERVER_TOKEN = process.env.DNS_SERVER_TOKEN;
 const DOMAIN_NAME = process.env.DOMAIN_NAME;
