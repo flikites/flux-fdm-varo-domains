@@ -63,7 +63,7 @@ build image
 `docker build -t yourtag .`
 
 run container
-`docker run --env-file=.env flux-dns-fdm`
+`docker run --network host --env-file=.env flux-dns-fdm`
 or `docker run --network host --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-dns-fdm`
 
 
