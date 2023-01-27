@@ -7,15 +7,14 @@ https://github.com/TechnitiumSoftware/DnsServer
 
 You can easily install your own self hosted DNS server using multiple methods, including docker, with this [link](https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html):
 https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html
-<br>
-<br>
+
 To generate your API Key use the drop down in the top right hand corner of the webadmin UI titled "Create API Token"
 
 or follow this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token) for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
-<br>
+
 # Install
-<br>
+
 
 To run this app in Ubuntu/Debain/Linux follow the below instructions:
 
