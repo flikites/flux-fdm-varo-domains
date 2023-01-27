@@ -5,7 +5,7 @@ DNS based Flux Domain Manager
 Currently only has support for [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer)
 https://github.com/TechnitiumSoftware/DnsServer
 
-You can easily install your own self hosted DNS server using multiple methods, including docker, with this [link] (https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token):
+You can easily install your own self hosted DNS server using multiple methods, including docker, with this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token):
 https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
 
