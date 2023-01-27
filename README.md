@@ -32,7 +32,7 @@ run container
 or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-fdm`
 
 
-##Envirornment Variables 
+## Envirornment Variables 
 
 ```DNS_SERVER_ADDRESS=http://127.0.0.1:5380
 DNS_SERVER_TOKEN_NAME=your_token_name
