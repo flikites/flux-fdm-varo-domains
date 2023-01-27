@@ -1,6 +1,18 @@
 # flux-dns-fdm
 
-DNS based Flux Domain Manager
+DNS based Flux Domain Manager - 
+
+Script that automatically adds your flux deployment IPs to a specified domain name within your DNS server using API
+
+# How It Works
+
+Randomly grabs 5 flux nodes from `/src/ips.txt` and looks for common IPs between each of the queried Nodes/API
+
+It then goes through a health check where it looks for http 200 OK status codes on all common IPs.
+
+If it responds properly then A records with a TTL of 60 and the healthy IPs are created in the specified zone.
+
+If old IPs exist in the zone that are not present in the latest set of common IPs, those A records are removed from the zone.
 
 Currently only has support for [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer)
 https://github.com/TechnitiumSoftware/DnsServer
