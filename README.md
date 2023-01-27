@@ -3,7 +3,7 @@ experimental/not tested fully
 
 DNS based Flux Domain Manager: 
 
-A script that can be run locally alongside a Technitium DNS server deployment, and will automatically add your flux deployment IPs to a specified domain name and zone within your DNS server using the Technitium DNS Servers API
+A script that can be run locally alongside a Technitium DNS server deployment. It will automatically add your flux deployment IPs to a specified domain name and zone within your DNS server using the Technitium DNS Servers API
 
 # How It Works
 
