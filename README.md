@@ -14,7 +14,7 @@ To generate your API Key use the drop down in the top right hand corner of the w
 or follow this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token) for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
 <br>
-## Installation
+# Install
 <br>
 
 To run this app in Ubuntu/Debain/Linux follow the below instructions:
