@@ -15,6 +15,7 @@ Things to do:
 2. Add health check for VPN Servers
 3. Add API support for PowerDNS (https://varo.domains/api)
 4. Add API support for Cloudflare (https://api.cloudflare.com/)
+5. Add support for multiple apps/ports, zones and domains. (runs for multiple applications)
 
 # How It Works
 
