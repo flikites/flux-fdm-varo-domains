@@ -7,7 +7,9 @@ Script that automatically adds your flux deployment IPs to a specified domain na
 
 # How It Works
 
-Randomly grabs 5 flux nodes from `/src/ips.txt` and looks for common IPs between each of the queried Nodes/API
+Use ENV variables to specify your Flux app and port. 
+
+It then randomly grabs 5 flux nodes from `/src/ips.txt` and looks for common IPs between each of the queried Nodes/API, for your app specifically. 
 
 It then goes through a health check where it looks for http 200 OK status codes on all common IPs.
 
@@ -61,7 +63,7 @@ build image
 
 run container
 `docker run --env-file=.env flux-dns-fdm`
-or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-dns-fdm`
+or `docker run --network host --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-dns-fdm`
 
 
 ## Envirornment Variables 
