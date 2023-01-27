@@ -29,7 +29,7 @@ build image
 
 run container
 `docker run --env-file=.env flux-dns-fdm`
-or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-fdm`
+or `docker run --env ENV_NAME=VALUE --env ENV_NAME=VALUE flux-dns-fdm`
 
 
 ## Envirornment Variables 
