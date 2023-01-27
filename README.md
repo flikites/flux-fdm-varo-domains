@@ -44,6 +44,11 @@ To generate your API Key use the drop down in the top right hand corner of the w
 or follow this [link](https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token) for alternative instructions: https://github.com/TechnitiumSoftware/DnsServer/blob/master/APIDOCS.md#create-api-token
 
 
+# Pre-Requisites
+1. You need a running Technitium DNS server with a static IP and port 53 tcp/udp open.
+2. You need an active API created for your Technitium DNS server. 
+3. You need to create a zone on the Technitium DNS server for the domain name you plan to use.
+
 # Install
 
 
