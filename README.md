@@ -7,7 +7,20 @@ A script that can be run locally alongside a [Technitium DNS](https://github.com
 
 Technitium DNS can serve authorative records for both ICANN Domains & [Handshake Domains](https://handshake.org).
 
+The downfall to using this method in conjunction with flux, is that domain names will need the port appended to the end of the URL to access the application on the port it is hosted on. (on flux)
+
+Things to do: 
+
+1. Add health check for Game Servers
+2. Add health check for VPN Servers
+3. Add API support for PowerDNS (https://varo.domains/api)
+4. Add API support for Cloudflare (https://api.cloudflare.com/)
+
 # How It Works
+
+This script checks flux endpoints for IP Address changes every 5 minutes. 
+
+You can modify the cron job expression on line 129 of `/src/app.js`
 
 Use ENV variables to specify your Flux app and port. 
 
