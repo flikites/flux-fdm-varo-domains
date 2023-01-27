@@ -17,7 +17,8 @@ If it responds properly then A records with a TTL of 60 and the healthy IPs are 
 
 If old IPs exist in the zone that are not present in the latest set of common IPs, those A records are removed from the zone.
 
-Currently only has support for [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer)
+Currently only has support for [Technitium DNS] API (https://github.com/TechnitiumSoftware/DnsServer)
+<br>
 https://github.com/TechnitiumSoftware/DnsServer
 
 You can easily install your own self hosted DNS server using multiple methods, including docker (needs port 53 publicly open), with this [link](https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html):
