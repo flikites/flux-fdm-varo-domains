@@ -5,7 +5,7 @@ DNS based Flux Domain Manager
 Currently only has support for [Technitium DNS](https://github.com/TechnitiumSoftware/DnsServer)
 https://github.com/TechnitiumSoftware/DnsServer
 
-You can easily install your own self hosted DNS server using multiple methods, including docker, with this [link](https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html):
+You can easily install your own self hosted DNS server using multiple methods, including docker (needs port 53 publicly open), with this [link](https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html):
 https://blog.technitium.com/2017/11/running-dns-server-on-ubuntu-linux.html
 
 To generate your API Key use the drop down in the top right hand corner of the webadmin UI titled "Create API Token"
