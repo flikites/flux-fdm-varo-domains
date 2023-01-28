@@ -123,7 +123,7 @@ async function deleteRecord(ip, domain_name, zone_name) {
 }
 
 async function getRecords(domain_name, zone_name) {
-  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}`;
+  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${zone_name}&zone=${zone_name}`;
   console.log("url ", url);
   const { data } = await axios.get(url);
   return data.response.records
