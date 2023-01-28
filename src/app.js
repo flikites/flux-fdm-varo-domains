@@ -1,4 +1,4 @@
-const cron = require("node-cron");
+const { workerData } = require("worker_threads");
 const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
@@ -7,16 +7,11 @@ const { findMostCommonResponse, getFluxNodes } = require("./utils");
 
 const WORKING_FLUX_NODE = "https://api.runonflux.io";
 const DNS_SERVER_ADDRESS =
-  process.env.DNS_SERVER_ADDRESS ?? "http://127.0.0.1:5380";
-const DNS_ZONE_NAME = process.env.DNS_ZONE_NAME;
+  process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
 const DNS_SERVER_TOKEN = process.env.DNS_SERVER_TOKEN;
-const DOMAIN_NAME = process.env.DOMAIN_NAME;
-const APP_PORT = process.env.APP_PORT;
-const APP_NAME = process.env.APP_NAME;
-// /api/zones/records/add?token=x&domain=try.fluxvpn&zone=fluxvpn&ttl=60&type=A&ipAddress={healthyIPofapp}
-// /api/zones/records/get?token=x&domain=example.com&zone=example.com
-// /api/zones/records/delete?token=x&domain=example.com&zone=example.com&type=A&ipAddress=127.0.0.1
+
 async function checkIP() {
+  const { app_name, app_port, zone_name, domain_name } = workerData;
   try {
     // Array of URLs
     const fluxNodes = await getFluxNodes();
@@ -25,9 +20,9 @@ async function checkIP() {
       .sort(() => 0.5 - Math.random())
       .slice(0, 5);
     const randomUrls = randomFluxNodes.map(
-      (ip) => `http://${ip}:16127/apps/location/${APP_NAME}`
+      (ip) => `http://${ip}:16127/apps/location/${app_name}`
     );
-    randomUrls.push(`${WORKING_FLUX_NODE}/apps/location/${APP_NAME}`);
+    randomUrls.push(`${WORKING_FLUX_NODE}/apps/location/${app_name}`);
     // const randomUrls = urls.sort(() => 0.5 - Math.random()).slice(0, 5);
     console.log("Selected URLs: ", randomUrls);
     // Make GET request to the selected URLs
@@ -43,7 +38,7 @@ async function checkIP() {
     for (let i = 0; i < responses.length; i++) {
       if (responses[i] && responses[i].data) {
         const data = responses[i].data.data;
-        console.log(`Received IPs from ${randomUrls[i]}:`, data);
+        console.log(`Received IPs from ${randomUrls[i]}: `, data);
         responseData.push(data.map((item) => item.ip));
       }
     }
@@ -57,13 +52,19 @@ async function checkIP() {
     });
     console.log(`Most common IP: ${commonIps}`);
 
-    const ipRecords = await getRecords();
+    const ipRecords = await getRecords(domain_name, zone_name);
 
     const badIps = ipRecords.filter((ip) => !commonIps.includes(ip));
 
     for (const ip of commonIps) {
       try {
-        await createOrDeleteRecord(ip, ipRecords);
+        await createOrDeleteRecord(
+          ip,
+          ipRecords,
+          app_port,
+          domain_name,
+          zone_name
+        );
       } catch (error) {
         console.log(error?.message ?? error);
       }
@@ -71,7 +72,7 @@ async function checkIP() {
     //deleting bad ips from dns record
     for (const badIp of badIps) {
       try {
-        await deleteRecord(badIp);
+        await deleteRecord(badIp, domain_name, zone_name);
       } catch (error) {
         console.log(error?.message ?? error);
       }
@@ -81,10 +82,16 @@ async function checkIP() {
   }
 }
 
-async function createOrDeleteRecord(selectedIp, records = []) {
+async function createOrDeleteRecord(
+  selectedIp,
+  records = [],
+  app_port,
+  domain_name,
+  zone_name
+) {
   console.log(`Selected IP: ${selectedIp}`);
   // Check if the selected IP returns success response
-  const checkIpResponse = await axios.get(`http://${selectedIp}:${APP_PORT}`);
+  const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
   if (checkIpResponse.status === 200) {
     console.log(`Successful response from IP: ${selectedIp}`);
 
@@ -94,7 +101,7 @@ async function createOrDeleteRecord(selectedIp, records = []) {
       );
       // Create new DNS record
       await axios.get(
-        `${DNS_SERVER_ADDRESS}/api/zones/records/add?token=${DNS_SERVER_TOKEN}&domain=${DOMAIN_NAME}&zone=${DNS_ZONE_NAME}&ttl=60&type=A&ipAddress=${selectedIp}`
+        `${DNS_SERVER_ADDRESS}/api/zones/records/add?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}&ttl=60&type=A&ipAddress=${selectedIp}`
       );
     } else {
       console.log(
@@ -104,19 +111,19 @@ async function createOrDeleteRecord(selectedIp, records = []) {
   } else if (checkIpResponse.status !== 200 && records.includes(selectedIp)) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
     // Delete DNS record
-    await deleteRecord(selectedIp);
+    await deleteRecord(selectedIp, domain_name, zone_name);
   }
 }
 
-async function deleteRecord(ip) {
+async function deleteRecord(ip, domain_name, zone_name) {
   await axios.get(
-    `${DNS_SERVER_ADDRESS}/api/zones/records/delete?token=${DNS_SERVER_TOKEN}&domain=${DOMAIN_NAME}&zone=${DNS_ZONE_NAME}&type=A&ipAddress=${ip}`
+    `${DNS_SERVER_ADDRESS}/api/zones/records/delete?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}&type=A&ipAddress=${ip}`
   );
   console.log("Deleted Bad Record From Dns Record IP: ", ip);
 }
 
-async function getRecords() {
-  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${DOMAIN_NAME}&zone=${DNS_ZONE_NAME}`;
+async function getRecords(domain_name, zone_name) {
+  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}`;
   console.log("url ", url);
   const { data } = await axios.get(url);
   return data.response.records
@@ -124,10 +131,4 @@ async function getRecords() {
     .map((item) => item.rData.ipAddress);
 }
 
-if (require.main === module) {
-  checkIP();
-  cron.schedule("*/5 * * * *", () => {
-    console.log("=========schedule run========");
-    checkIP();
-  });
-}
+checkIP();
