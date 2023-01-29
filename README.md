@@ -1,6 +1,6 @@
 experimental/not tested fully
 
-# flux-dns-fdm
+# flux-fdm-varo-domains
 
 DNS based Flux Domain Manager:
 
