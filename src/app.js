@@ -72,9 +72,11 @@ async function checkIP() {
     //deleting bad ips from dns record
     for (const badIp of badIps) {
       try {
-        await deleteRecord(badIp, domain_name, zone_name);
+        // we are adding extra check here if get success response we will not
+        await axios.get(`http://${badIp}:${app_port}`);
       } catch (error) {
         console.log(error?.message ?? error);
+        await deleteRecord(badIp, domain_name, zone_name);
       }
     }
   } catch (error) {
@@ -123,15 +125,44 @@ async function deleteRecord(ip, domain_name, zone_name) {
 }
 
 async function getRecords(domain_name, zone_name) {
-  domain_name = domain_name.includes(".")
-    ? domain_name.split(".")[1]
+  const domain = domain_name.includes(".")
+    ? getDomain(domain_name)
     : domain_name;
-  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}`;
+  console.log(`domain_name: ${domain_name}, domain: ${domain}`);
+  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${domain}&zone=${zone_name}`;
   console.log("url ", url);
   const { data } = await axios.get(url);
   return data.response.records
     .filter((record) => record.type === "A")
     .map((item) => item.rData.ipAddress);
+}
+
+function getDomain(domain) {
+  const commonTlds = [
+    ".com",
+    ".net",
+    ".org",
+    ".edu",
+    ".gov",
+    ".uk",
+    ".us",
+    ".ca",
+    ".au",
+  ];
+  let parts = domain.split(".");
+  let tld = parts.pop();
+  let tld_d = tld;
+  tld = "." + tld;
+  if (commonTlds.includes(tld)) {
+    let secondLvlDomain = parts.pop();
+    if (secondLvlDomain) {
+      return secondLvlDomain + tld;
+    } else {
+      return domain;
+    }
+  } else {
+    return tld_d;
+  }
 }
 
 checkIP();
