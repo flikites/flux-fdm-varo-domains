@@ -76,8 +76,6 @@ function createZone(zone) {
 if (require.main === module) {
   main();
   cron.schedule("*/6 * * * *", async () => {
-    console.log("=========schedule run start========");
     await main();
-    console.log("=========schedule run finish========");
   });
 }
