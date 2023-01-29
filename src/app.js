@@ -1,11 +1,11 @@
 const dotenv = require("dotenv");
 dotenv.config();
-const { workerData } = require("worker_threads");
+// const { workerData } = require("worker_threads");
 const axios = require("axios");
 
 const { findMostCommonResponse, getFluxNodes, api } = require("./utils");
 
-async function checkIP() {
+async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name, working_addresses } =
     workerData;
   try {
@@ -104,4 +104,7 @@ async function createOrDeleteRecord(
   }
 }
 
-checkIP();
+// checkIP();
+module.exports = {
+  checkIP,
+};

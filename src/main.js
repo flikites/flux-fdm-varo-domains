@@ -1,9 +1,9 @@
 const dotenv = require("dotenv");
 dotenv.config();
-const { Worker } = require("worker_threads");
 const cron = require("node-cron");
 const axios = require("axios");
 const { api } = require("./utils");
+const { checkIP } = require("./app");
 
 const APPS_NAME = process.env.APP_NAME?.split(",");
 const APPS_PORT = process.env.APP_PORT?.split(",");
@@ -23,28 +23,39 @@ async function main() {
   );
 
   for (let i = 0; i < APPS_NAME.length; i++) {
-    console.log("Worker: ", i + 1);
-    const worker = new Worker(__dirname + "/app.js", {
-      workerData: {
+    // console.log("Worker: ", i + 1);
+    // const worker = new Worker(__dirname + "/app.js", {
+    //   workerData: {
+    //     app_name: APPS_NAME[i],
+    //     app_port: APPS_PORT[i],
+    //     zone_name: DNS_ZONES_NAME[i],
+    //     domain_name: DOMAINS_NAME[i],
+    //     working_addresses: workingIpsByZone[DNS_ZONES_NAME[i]],
+    //   },
+    // });
+    // worker.on("message", (message) => {
+    //   console.log(message);
+    // });
+    // worker.on("exit", (code) => {
+    //   if (code !== 0)
+    //     console.error(new Error(`Worker stopped with exit code ${code}`));
+    // });
+    // worker.on("error", (err) => {
+    //   console.log("worker error ", err?.message ?? err);
+    // });
+    // workers.push(worker);
+
+    workers.push(
+      checkIP({
         app_name: APPS_NAME[i],
         app_port: APPS_PORT[i],
         zone_name: DNS_ZONES_NAME[i],
         domain_name: DOMAINS_NAME[i],
         working_addresses: workingIpsByZone[DNS_ZONES_NAME[i]],
-      },
-    });
-    worker.on("message", (message) => {
-      console.log(message);
-    });
-    worker.on("exit", (code) => {
-      if (code !== 0)
-        console.error(new Error(`Worker stopped with exit code ${code}`));
-    });
-    worker.on("error", (err) => {
-      console.log("worker error ", err?.message ?? err);
-    });
-    workers.push(worker);
+      })
+    );
   }
+  await Promise.all(workers);
 }
 
 async function getHealthyIp(zone, ports) {
