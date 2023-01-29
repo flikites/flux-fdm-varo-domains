@@ -1,4 +1,12 @@
 const fs = require("fs").promises;
+const axios = require("axios");
+
+const api = axios.create({
+  baseURL: process.env.DNS_SERVER_ADDRESS ?? "https://varo.domains/api",
+  headers: {
+    Authorization: `Bearer ${process.env.DNS_SERVER_API_KEY}`,
+  },
+});
 
 async function getFluxNodes() {
   try {
@@ -34,4 +42,5 @@ function findMostCommonResponse(arr) {
 module.exports = {
   findMostCommonResponse,
   getFluxNodes,
+  api,
 };

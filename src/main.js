@@ -1,12 +1,9 @@
-const { Worker, MessageChannel } = require("worker_threads");
-const cron = require("node-cron");
-const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
-
-const DNS_SERVER_ADDRESS =
-  process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
-const DNS_SERVER_TOKEN = process.env.DNS_SERVER_TOKEN;
+const { Worker } = require("worker_threads");
+const cron = require("node-cron");
+const axios = require("axios");
+const { api } = require("./utils");
 
 const APPS_NAME = process.env.APP_NAME?.split(",");
 const APPS_PORT = process.env.APP_PORT?.split(",");
@@ -15,7 +12,15 @@ const DOMAINS_NAME = process.env.DOMAIN_NAME?.split(",");
 
 async function main() {
   let workers = [];
-  await createNotAvailableZones(DNS_ZONES_NAME);
+  const workingIpsByZone = {};
+
+  await Promise.all(
+    DNS_ZONES_NAME.map((zone) => {
+      return getHealthyIp(zone, APPS_PORT).then((ips) => {
+        workingIpsByZone[zone] = ips;
+      });
+    })
+  );
 
   for (let i = 0; i < APPS_NAME.length; i++) {
     console.log("Worker: ", i + 1);
@@ -25,6 +30,7 @@ async function main() {
         app_port: APPS_PORT[i],
         zone_name: DNS_ZONES_NAME[i],
         domain_name: DOMAINS_NAME[i],
+        working_addresses: workingIpsByZone[DNS_ZONES_NAME[i]],
       },
     });
     worker.on("message", (message) => {
@@ -41,41 +47,53 @@ async function main() {
   }
 }
 
-async function createNotAvailableZones(zones = []) {
-  try {
-    // get all zones from dns server
-    const { data } = await axios.get(
-      `${DNS_SERVER_ADDRESS}/api/zones/list?token=${DNS_SERVER_TOKEN}`
-    );
-    // we only need the zone names so maping over response and getting the names
-    const availabeZones = data.response.zones.map((item) => item.name);
-    //filtering not availale zones from response
-    const unavailableZones = zones.filter(
-      (zone) => !availabeZones.includes(zone)
-    );
+async function getHealthyIp(zone, ports) {
+  console.log("==============zone============");
+  console.log(zone);
+  console.log("=============zone=============");
 
-    //creating new zone if they not existed in previous response
-    if (unavailableZones.length) {
-      await axios.all(unavailableZones.map(createZone)).catch((error) => {
-        console.log(`Zone Error while making concurrent requests: ${error}`);
-      });
+  const workingIPs = [];
+  const { data } = await api.post("", {
+    action: "getRecords",
+    zone: zone,
+  });
+  const records = data.data.filter((item) => item.type === "A");
+  for (const record of records) {
+    let isHealthy = false;
+    for (const port of ports) {
+      try {
+        console.log(`checking http://${record.content}:${port}`);
+        const { status } = await axios.get(`http://${record.content}:${port}`);
+        if (status === 200) {
+          isHealthy = true;
+          workingIPs.push(record.content);
+          console.info(`looks healthy: http://${record.content}:${port}`);
+          break;
+        }
+      } catch (error) {
+        console.log(`H->Error connecting to ${record.content}:${port}`);
+      }
     }
-  } catch (error) {
-    console.log(error?.message ?? error);
-  }
-}
 
-function createZone(zone) {
-  return axios
-    .get(
-      `${DNS_SERVER_ADDRESS}/api/zones/create?token=${DNS_SERVER_TOKEN}&zone=${zone}&type=Primary`
-    )
-    .catch((e) => console.log(e?.message ?? e));
+    if (!isHealthy) {
+      console.log(
+        `Health check failed IP:${record.content} deleting from dns server`
+      );
+      await api
+        .post("", {
+          action: "deleteRecord",
+          zone: zone,
+          record: record.uuid,
+        })
+        .catch(console.log);
+    }
+  }
+  return workingIPs;
 }
 
 if (require.main === module) {
   main();
-  cron.schedule("*/6 * * * *", async () => {
-    await main();
+  cron.schedule("*/15 * * * *", () => {
+    main();
   });
 }

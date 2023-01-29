@@ -1,16 +1,13 @@
-const { workerData } = require("worker_threads");
-const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
+const { workerData } = require("worker_threads");
+const axios = require("axios");
 
-const { findMostCommonResponse, getFluxNodes } = require("./utils");
-
-const DNS_SERVER_ADDRESS =
-  process.env.DNS_SERVER_ADDRESS ?? "http://146.190.112.16:5380";
-const DNS_SERVER_TOKEN = process.env.DNS_SERVER_TOKEN;
+const { findMostCommonResponse, getFluxNodes, api } = require("./utils");
 
 async function checkIP() {
-  const { app_name, app_port, zone_name, domain_name } = workerData;
+  const { app_name, app_port, zone_name, domain_name, working_addresses } =
+    workerData;
   try {
     // Array of URLs
     const fluxNodes = await getFluxNodes();
@@ -49,41 +46,22 @@ async function checkIP() {
       return ip;
     });
 
-    const ipRecords = await getRecords(domain_name, zone_name);
-
-    const badIps = ipRecords.filter((ip) => !commonIps.includes(ip));
-
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("flux Consensus Ip list for app: ", commonIps);
-    console.log("dns server retunrned IP: ", ipRecords);
+    console.log("dns server retunrned IP: ", working_addresses);
 
     for (const ip of commonIps) {
       try {
         await createOrDeleteRecord(
           ip,
-          ipRecords,
+          working_addresses,
           app_port,
           domain_name,
           zone_name
         );
       } catch (error) {
         console.log(error?.message ?? error);
-      }
-    }
-    //deleting bad ips from dns record
-    for (const badIp of badIps) {
-      try {
-        // we are adding extra check here if get success response we will not
-        const r = await axios.get(`http://${badIp}:${app_port}`);
-        console.log("r ", r.status);
-      } catch (error) {
-        console.log(error?.message ?? error);
-        console.log(`not healthy ${`http://${badIp}:${app_port}`}`);
-        await deleteRecord(badIp, domain_name, zone_name);
-        console.log(
-          `deleted IP:${badIp} for domain: ${domain_name} zone: ${zone_name} app: ${app_name}`
-        );
       }
     }
   } catch (error) {
@@ -103,68 +81,26 @@ async function createOrDeleteRecord(
   if (checkIpResponse.status === 200) {
     if (!records.includes(selectedIp)) {
       console.log(
-        `Creating new record for IP: ${selectedIp} in Technitium DNS Server`
+        `Creating new record for IP: ${selectedIp} in Power DNS Server`
       );
       // Create new DNS record
-      await axios.get(
-        `${DNS_SERVER_ADDRESS}/api/zones/records/add?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}&ttl=60&type=A&ipAddress=${selectedIp}`
-      );
+      await api.post("", {
+        action: "addRecord",
+        zone: zone_name,
+        type: "A",
+        name: domain_name,
+        content: selectedIp,
+      });
     } else {
       console.log(
-        `Record for IP: ${selectedIp} already exists in Technitium DNS Server`
+        `Record for IP: ${selectedIp} already exists in Power DNS Server`
       );
     }
   } else if (checkIpResponse.status !== 200 && records.includes(selectedIp)) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
-    // Delete DNS record
-    await deleteRecord(selectedIp, domain_name, zone_name);
-  }
-}
-
-async function deleteRecord(ip, domain_name, zone_name) {
-  await axios.get(
-    `${DNS_SERVER_ADDRESS}/api/zones/records/delete?token=${DNS_SERVER_TOKEN}&domain=${domain_name}&zone=${zone_name}&type=A&ipAddress=${ip}`
-  );
-}
-
-async function getRecords(domain_name, zone_name) {
-  const domain = domain_name.includes(".")
-    ? getDomain(domain_name)
-    : domain_name;
-  const url = `${DNS_SERVER_ADDRESS}/api/zones/records/get?token=${DNS_SERVER_TOKEN}&domain=${domain}&zone=${zone_name}`;
-  const { data } = await axios.get(url);
-  return (
-    data?.response?.records
-      ?.filter((record) => record.type === "A")
-      ?.map((item) => item.rData.ipAddress) ?? []
-  );
-}
-
-function getDomain(domain) {
-  const commonTlds = [
-    ".com",
-    ".net",
-    ".org",
-    ".edu",
-    ".gov",
-    ".uk",
-    ".us",
-    ".ca",
-    ".au",
-  ];
-  let parts = domain.split(".");
-  let tld = parts.pop();
-  let tld_d = tld;
-  tld = "." + tld;
-  if (commonTlds.includes(tld)) {
-    let secondLvlDomain = parts.pop();
-    if (secondLvlDomain) {
-      return secondLvlDomain + tld;
-    } else {
-      return domain;
-    }
-  } else {
-    return tld_d;
+    console.log(
+      `IP: ${selectedIp} will be deleted from dns server next iteration`
+    );
   }
 }
 
