@@ -2,7 +2,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cron = require("node-cron");
 const axios = require("axios");
-const { api } = require("./utils");
+const { api, checkConnection } = require("./utils");
 const { checkIP } = require("./app");
 
 const APPS_NAME = process.env.APP_NAME?.split(",");
@@ -52,8 +52,9 @@ async function getHealthyIp(zone, ports) {
     for (const port of ports) {
       try {
         console.log(`checking http://${record.content}:${port}`);
-        const { status } = await axios.get(`http://${record.content}:${port}`);
-        if (status === 200) {
+        // const { status } = await axios.get(`http://${record.content}:${port}`);
+        const connected = await checkConnection(record.content, port);
+        if (connected) {
           isHealthy = true;
           workingIPs.push(record.content);
           console.info(`looks healthy: http://${record.content}:${port}`);

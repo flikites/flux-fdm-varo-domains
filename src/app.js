@@ -3,7 +3,12 @@ dotenv.config();
 // const { workerData } = require("worker_threads");
 const axios = require("axios");
 
-const { findMostCommonResponse, getFluxNodes, api } = require("./utils");
+const {
+  findMostCommonResponse,
+  getFluxNodes,
+  api,
+  checkConnection,
+} = require("./utils");
 
 async function checkIP(workerData) {
   const { app_name, app_port, zone_name, domain_name, working_addresses } =
@@ -77,8 +82,9 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Check if the selected IP returns success response
-  const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
-  if (checkIpResponse.status === 200) {
+  // const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
+  const connected = await checkConnection(selectedIp, app_port);
+  if (connected) {
     if (!records.includes(selectedIp)) {
       console.log(
         `Creating new record for IP: ${selectedIp} in Power DNS Server`
@@ -96,7 +102,7 @@ async function createOrDeleteRecord(
         `Record for IP: ${selectedIp} already exists in Power DNS Server`
       );
     }
-  } else if (checkIpResponse.status !== 200 && records.includes(selectedIp)) {
+  } else if (!connected && records.includes(selectedIp)) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
     console.log(
       `IP: ${selectedIp} will be deleted from dns server next iteration`
