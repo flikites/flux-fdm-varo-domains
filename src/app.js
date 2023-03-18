@@ -1,25 +1,18 @@
 const dotenv = require("dotenv");
 dotenv.config();
-// const { workerData } = require("worker_threads");
 const axios = require("axios");
 
 const {
   findMostCommonResponse,
-  getFluxNodes,
-  api,
+  getWorkingNodes,
   checkConnection,
+  api,
 } = require("./utils");
 
-async function checkIP(workerData) {
-  const { app_name, app_port, zone_name, domain_name, working_addresses } =
-    workerData;
+async function checkIP({ app_name, app_port, domain_name }) {
   try {
-    // Array of URLs
-    const fluxNodes = await getFluxNodes();
     // Select 5 random URLs
-    const randomFluxNodes = fluxNodes
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 5);
+    const randomFluxNodes = await getWorkingNodes();
 
     const randomUrls = randomFluxNodes.map(
       (ip) => `http://${ip}:16127/apps/location/${app_name}`
@@ -51,20 +44,15 @@ async function checkIP(workerData) {
       return ip;
     });
 
+    const { records, zone } = await getZoneAndRecords(domain_name, app_port);
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("flux Consensus Ip list for app: ", commonIps);
-    console.log("dns server retunrned IP: ", working_addresses);
+    console.log("dns server returned records: ", records);
 
     for (const ip of commonIps) {
       try {
-        await createOrDeleteRecord(
-          ip,
-          working_addresses,
-          app_port,
-          domain_name,
-          zone_name
-        );
+        await createOrDeleteRecord(ip, records, app_port, domain_name, zone);
       } catch (error) {
         console.log(error?.message ?? error);
       }
@@ -82,12 +70,29 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Check if the selected IP returns success response
-  // const checkIpResponse = await axios.get(`http://${selectedIp}:${app_port}`);
   const connected = await checkConnection(selectedIp, app_port);
-  if (connected) {
-    if (!records.includes(selectedIp)) {
+  const { data: r2 } = await axios.get(
+    `https://api.incolumitas.com/?q=${selectedIp}`
+  );
+  let isGood = true;
+  if (
+    r2?.is_datacenter ||
+    r2?.is_tor ||
+    r2?.is_proxy ||
+    r2?.is_vpn ||
+    r2?.is_abuser
+  ) {
+    isGood = false;
+    console.log("bad user ip detected: ", selectedIp);
+  }
+
+  const record = records.find(
+    (r) => r.content === selectedIp && r.name === domain_name
+  );
+  if (connected && isGood) {
+    if (!record) {
       console.log(
-        `Creating new record for IP: ${selectedIp} in Power DNS Server`
+        `Creating new record for IP: ${selectedIp} in VARO DNS Server`
       );
       // Create new DNS record
       await api.post("", {
@@ -99,14 +104,78 @@ async function createOrDeleteRecord(
       });
     } else {
       console.log(
-        `Record for IP: ${selectedIp} already exists in Power DNS Server`
+        `Record for IP: ${selectedIp} already exists in VARO DNS Server`
       );
     }
-  } else if (!connected && records.includes(selectedIp)) {
+  } else if ((!connected || !isGood) && record) {
     console.log(`Unsuccessful response from IP: ${selectedIp}`);
+    await api
+      .post("", {
+        action: "deleteRecord",
+        zone: zone_name,
+        record: record.uuid,
+      })
+      .catch((e) => console.log(e));
+    console.log(`IP: ${selectedIp} deleted `);
+  }
+}
+
+async function getZoneAndRecords(name, port) {
+  let zone = "";
+  let records = [];
+  console.log("processing dns zone for name: ", name);
+  try {
+    const { data } = await api.post("", {
+      action: "getZones",
+    });
+    let domain = name;
+    if (domain.includes(".")) {
+      const split = domain.split(".");
+      domain = `${split[split.length - 2]}.${split[split.length - 1]}`;
+    }
+    console.log("data ", data);
+    const z = data.data.find((z) => z.name === domain);
+    if (!z) {
+      const { data } = await api.post("", {
+        action: "createZone",
+        domain: domain,
+      });
+
+      zone = data.data.zone;
+      console.log(`zone created ${zone} NAME: ${domain}`);
+    } else {
+      console.log(`zone exist ${z.name}:${z.id}`);
+      zone = z.id;
+    }
+
+    const { data: recordsData } = await api.post("", {
+      action: "getRecords",
+      zone: zone,
+    });
+    records = [];
+    for (const record of recordsData.data ?? []) {
+      try {
+        await checkConnection(record.content, port);
+        records.push(record);
+      } catch (error) {
+        console.log(error);
+        console.log("deleting ip from dns server ", record.content);
+        await api
+          .post("", {
+            action: "deleteRecord",
+            zone: zone,
+            record: record.uuid,
+          })
+          .catch((e) => console.log(e));
+      }
+    }
+    return { records, zone };
+  } catch (error) {
     console.log(
-      `IP: ${selectedIp} will be deleted from dns server next iteration`
+      "Unable to get or create zone or get DNS records: ",
+      error?.message
     );
+    return { records, zone };
   }
 }
 
