@@ -23,7 +23,7 @@ async function main() {
 
 if (require.main === module) {
   main();
-  // cron.schedule("*/15 * * * *", () => {
-  //   main();
-  // });
+  cron.schedule("*/15 * * * *", () => {
+    main();
+  });
 }

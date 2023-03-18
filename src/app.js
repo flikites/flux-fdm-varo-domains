@@ -166,7 +166,7 @@ async function getZoneAndRecords(name, port) {
             zone: zone,
             record: record.uuid,
           })
-          .catch((e) => console.log(e));
+          .catch((e) => console.log(e?.message));
       }
     }
     return { records, zone };
