@@ -69,32 +69,52 @@ async function createOrDeleteRecord(
   domain_name,
   zone_name
 ) {
-  // Check if the selected IP returns success response
-  const connected = await checkConnection(selectedIp, app_port);
-  const { data: r2 } = await axios.get(
-    `https://api.incolumitas.com/?q=${selectedIp}`
-  );
-  let isGood = true;
-  if (
-    r2?.is_datacenter ||
-    r2?.is_tor ||
-    r2?.is_proxy ||
-    r2?.is_vpn ||
-    r2?.is_abuser
-  ) {
-    isGood = false;
-    console.log("bad user ip detected: ", selectedIp);
+  // Get the value of the environment variable (default to true if not set)
+const apiCheckEnabled = process.env.API_CHECK_ENABLED === 'false';
+
+// Define a modular check for the API
+const checkIpWithApi = async (selectedIp) => {
+  if (apiCheckEnabled) {
+    // Only call the API if the environment variable is true
+    const { data: r2 } = await axios.get(
+      `https://api.incolumitas.com/?q=${selectedIp}`
+    );
+    
+    let isGood = true;
+    if (
+      r2?.is_datacenter ||
+      r2?.is_tor ||
+      r2?.is_proxy ||
+      r2?.is_vpn ||
+      r2?.is_abuser
+    ) {
+      isGood = false;
+      console.log("bad user ip detected: ", selectedIp);
+    }
+    
+    return isGood;  // Return the result based on the API check
+  } else {
+    console.log("API check is disabled, proceeding without it.");
+    return true;  // If the check is disabled, consider the IP as good
   }
+};
+
+// Main logic for handling DNS records
+const handleDnsRecord = async (selectedIp, domain_name, zone_name) => {
+  const connected = await checkConnection(selectedIp, app_port);
+  
+  // Use the modular API check here
+  const isGood = await checkIpWithApi(selectedIp);
 
   const record = records.find(
     (r) => r.content === selectedIp && r.name === domain_name
   );
+
   if (connected && isGood) {
     if (!record) {
       console.log(
         `Creating new record for IP: ${selectedIp} in VARO DNS Server`
       );
-      // Create new DNS record
       await api.post("", {
         action: "addRecord",
         zone: zone_name,
@@ -118,7 +138,8 @@ async function createOrDeleteRecord(
       .catch((e) => console.log(e));
     console.log(`IP: ${selectedIp} deleted `);
   }
-}
+};
+
 
 async function getZoneAndRecords(name, port) {
   let zone = "";
