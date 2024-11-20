@@ -5,8 +5,8 @@
 echo "Checking environment variables..."
 
 # Load the .env file
-if [ -f /tmp/.env ]; then
-    export $(grep -v '^#' /tmp/.env | xargs)
+if [ -f ${ENV_FILE_PATH:-/tmp}/.env ]; then
+    export $(grep -v '^#' ${ENV_FILE_PATH:-/tmp}/.env | xargs)
 else
     echo ".env file not found"
 fi
