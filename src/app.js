@@ -196,7 +196,7 @@ async function getZoneAndRecords(domain_name, port, app_name) {
       action: "getZones",
     });
     // Check if a zone for the root domain exists
-    const existingZone = data?.data?.find?.((z) => z.name === rootDomain);
+    const existingZone = data.data.find((z) => z.name === rootDomain);
 
     if (existingZone) {
       zone = existingZone.id;
