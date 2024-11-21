@@ -1,76 +1,83 @@
 const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
+const https = require("https");
 
 const {
   findMostCommonResponse,
   getWorkingNodes,
   checkConnection,
+  getTlds,
   api,
 } = require("./utils");
 
+const agent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+const axiosInstance = axios.create({
+  httpsAgent: agent,
+});
+
 async function checkIP({ app_name, app_port, domain_names }) {
   try {
-    console.log(domain_names);
-    const randomUrls = await getRandomUrls(app_name);
-    const responses = await makeConcurrentRequests(randomUrls);
-    const responseData = getResponseData(responses);
-    const commonIps = findCommonIps(responseData);
-    console.log("commonIps ", commonIps);
+    // Select working nodes
+    const randomFluxNodes = await getWorkingNodes();
+    const randomUrls = randomFluxNodes.map(
+      (ip) => `https://${ip}:16128/apps/location/${app_name}`
+    );
+
+    const requests = randomUrls.map((url) =>
+      axiosInstance.get(url).catch((error) => {
+        console.log(`Error while making request to ${url}: ${error}`);
+      })
+    );
+
+    const responses = await Promise.all(requests).catch((error) => {
+      console.log(`Error while making concurrent requests: ${error}`);
+    });
+
+    let responseData = [];
+    for (let i = 0; i < responses.length; i++) {
+      if (responses[i] && responses[i].data) {
+        const data = responses[i].data.data;
+        responseData.push(data.map((item) => item.ip));
+      }
+    }
+
+    // Find the most common IPs
+    const commonIps = findMostCommonResponse(responseData).map((ip) => {
+      if (ip.includes(":")) {
+        return ip.split(":")[0];
+      }
+      return ip;
+    });
+
+    // Find healthy IPs
     const healthyIps = await findHealthyIps(commonIps, app_port);
-    console.log("healthyIps ", healthyIps);
+    console.log(`[App: ${app_name}] Healthy IPs: `, healthyIps);
+
     if (healthyIps?.length) {
       const { records, zone } = await getZoneAndRecords(
         app_name,
         app_port,
-        healthyIps
+        healthyIps,
+        app_name // Using first domain for zone determination
       );
-      console.log("records ", records);
-      await processDomainNames(domain_names, healthyIps, records, zone);
+
+      await processDomainNames(
+        domain_names,
+        healthyIps,
+        records,
+        zone,
+        app_port
+      );
     } else {
-      console.log("there is no healthy ips so application is quiting.");
+      console.log(`[App: ${app_name}] No healthy IPs found. Exiting.`);
     }
   } catch (error) {
-    console.error(error?.message ?? error);
+    console.error(`[App: ${app_name}] Error: ${error?.message ?? error}`);
   }
-}
-
-async function getRandomUrls(app_name) {
-  const randomFluxNodes = await getWorkingNodes();
-  return randomFluxNodes.map(
-    (ip) => `http://${ip}:16127/apps/location/${app_name}`
-  );
-}
-
-async function makeConcurrentRequests(randomUrls) {
-  const requests = randomUrls.map((url) =>
-    axios.get(url).catch((error) => {
-      console.log(`Error while making request to ${url}: ${error}`);
-    })
-  );
-  return await axios.all(requests).catch((error) => {
-    console.log(`Error while making concurrent requests: ${error}`);
-  });
-}
-
-function getResponseData(responses) {
-  let responseData = [];
-  for (let i = 0; i < responses.length; i++) {
-    if (responses[i] && responses[i].data) {
-      const data = responses[i].data.data;
-      responseData.push(data.map((item) => item.ip));
-    }
-  }
-  return responseData;
-}
-
-function findCommonIps(responseData) {
-  return findMostCommonResponse(responseData).map((ip) => {
-    if (ip.includes(":")) {
-      return ip.split(":")[0];
-    }
-    return ip;
-  });
 }
 
 async function findHealthyIps(commonIps, app_port) {
@@ -78,132 +85,164 @@ async function findHealthyIps(commonIps, app_port) {
   for (const ip of commonIps) {
     try {
       await checkConnection(ip, app_port);
-      healthyIps.push(ip);
+      const isGoodIp = await checkIpQuality(ip);
+      if (isGoodIp) {
+        healthyIps.push(ip);
+      }
     } catch (error) {
-      console.log("flux returned a bad ip we are excluding from commonIps", ip);
+      console.log(`Excluding unhealthy IP: ${ip}`);
     }
   }
   return healthyIps;
 }
 
-async function processDomainNames(domain_names, healthyIps, records, zone) {
+async function checkIpQuality(ip) {
+  const apiCheckEnabled = process.env.API_CHECK_ENABLED === "true";
+
+  if (apiCheckEnabled) {
+    try {
+      console.log("checking ip quality score for ip ", ip);
+      const { data } = await axios.get(
+        `https://www.ipqualityscore.com/api/json/ip/${process.env.IP_QUALITY_KEY}/${ip}?strictness=2`
+      );
+      // console.log("clean data ", data);
+      if (
+        data.proxy ||
+        data.vpn ||
+        data.recent_abuse ||
+        data.tor ||
+        data.fraud_score >= 74
+      ) {
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.log("ipquality check failed for ip ", ip);
+      console.log("ip quality error ", error?.message ?? error);
+    }
+  }
+  return true;
+}
+
+async function processDomainNames(
+  domain_names,
+  healthyIps,
+  records,
+  zone,
+  app_port
+) {
   for (const [index, domainName] of domain_names.entries()) {
     const ip = index < healthyIps.length ? healthyIps[index] : healthyIps[0];
     try {
-      await createOrDeleteRecord(ip, records, domainName, zone);
+      await updateDnsRecord(ip, records, domainName, zone, app_port);
     } catch (error) {
-      console.log(error?.message ?? error);
+      console.log(
+        `Error processing domain ${domainName}: ${error?.message ?? error}`
+      );
     }
   }
 }
 
-async function createOrDeleteRecord(
+async function updateDnsRecord(
   selectedIp,
-  records = [],
+  records,
   domain_name,
-  zone_name
+  zone_name,
+  app_port
 ) {
   const record = records.find((r) => r.name === domain_name);
 
-  if (!record && selectedIp && domain_name) {
+  if (!record) {
     console.log(
-      `Creating new record for IP: ${selectedIp} for name ${domain_name} in VARO DNS Server`
+      `Creating new record for IP: ${selectedIp} for domain ${domain_name}`
     );
-    // Create new DNS record
-    const { data } = await api.post("", {
+    await api.post("", {
       action: "addRecord",
       zone: zone_name,
       type: "A",
       name: domain_name,
       content: selectedIp,
     });
-    console.log("d ", data);
+  } else if (record.content !== selectedIp) {
+    console.log(
+      `Updating record for ${domain_name} from ${record.content} to ${selectedIp}`
+    );
+    await api.post("", {
+      action: "updateRecord",
+      zone: zone_name,
+      record: record.id,
+      column: "content",
+      value: selectedIp,
+    });
   } else {
     console.log(
-      `Record for IP: ${selectedIp} already exists in VARO DNS Server`
+      `Record for ${domain_name} already exists with correct IP: ${selectedIp}`
     );
   }
 }
 
-async function getZoneAndRecords(name, port, commonIps) {
+async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
   let zone = "";
   let records = [];
-  console.log("processing dns zone for name: ", name);
+  const ICANN_TLDS = await getTlds();
 
   try {
-    const { data } = await api.post("", { action: "getZones" });
-    // const domain = getDomainFromName(name);
-    const existingZone = data.data.find((z) => z.name === name);
+    function getRootDomain(domain) {
+      const parts = domain.split(".");
+      const tld = parts[parts.length - 1];
 
-    if (existingZone) {
-      console.log(`zone exists ${existingZone.name}:${existingZone.id}`);
-      zone = existingZone.id;
-    } else {
-      const { data: createdZone } = await api.post("", {
-        action: "createZone",
-        name,
-      });
-      zone = createdZone.data.zone;
-      console.log(`zone created ${zone} NAME: ${name}`);
+      if (ICANN_TLDS.includes(tld)) {
+        if (parts.length < 2) return domain;
+        return parts.slice(-2).join(".");
+      } else {
+        return tld;
+      }
     }
 
+    let rootDomain = getRootDomain(domain_name);
+    console.log(
+      `[App: ${app_name}] Using app name as Root domain: ${rootDomain}`
+    );
+
+    // Get or create zone
+    const { data } = await api.post("", { action: "getZones" });
+    const existingZone = data?.data?.find((z) => z.name === rootDomain);
+
+    if (existingZone) {
+      zone = existingZone.id;
+      console.log(`Zone exists: ${rootDomain}:${zone}`);
+    } else {
+      const { data: newZoneData } = await api.post("", {
+        action: "createZone",
+        domain: rootDomain,
+      });
+      zone = newZoneData.data.zone;
+      console.log(`Zone created: ${zone} for ${rootDomain}`);
+    }
+
+    // Get and verify records
     const { data: recordsData } = await api.post("", {
       action: "getRecords",
       zone,
     });
 
-    for (const record of recordsData.data ?? []) {
+    records = (recordsData.data ?? []).filter(async (record) => {
       try {
         await checkConnection(record.content, port);
-        records.push(record);
+        return true;
       } catch (error) {
-        console.log(
-          `detected a bad record with name: ${record.name} and ip ${record.content}`
-        );
-
-        const newIp =
-          findHealthyNewIp(commonIps, data.result) ?? getRandomIp(commonIps);
-        console.log(
-          `replacing bad ip: ${record.content} with new ip:${newIp} for domain:${record.name}`
-        );
-
-        await api.post("", {
-          action: "updateRecord",
-          zone,
-          record: record.id,
-          column: "content",
-          value: newIp,
-        });
-
-        record.content = newIp;
-        records.push(record);
+        console.log(`Bad record detected: ${record.content}`);
+        return false;
       }
-    }
+    });
+
+    return { records, zone };
   } catch (error) {
-    console.log(
-      "Unable to get or create zone or get DNS records: ",
-      error?.message
-    );
+    console.log(`Zone management error: ${error?.message ?? error}`);
+    return { records, zone };
   }
-  return { records, zone };
 }
 
-// function getDomainFromName(name) {
-//   if (!name.includes(".")) return name;
-//   const split = name.split(".");
-//   return `${split[split.length - 2]}.${split[split.length - 1]}`;
-// }
-
-function findHealthyNewIp(commonIps, records) {
-  return commonIps.find((ip) => !records.find((r) => r.content === ip));
-}
-
-function getRandomIp(commonIps) {
-  const randomIndex = Math.floor(Math.random() * commonIps.length);
-  return commonIps[randomIndex];
-}
-
-// checkIP();
 module.exports = {
   checkIP,
 };
