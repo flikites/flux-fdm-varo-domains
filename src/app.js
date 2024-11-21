@@ -163,6 +163,9 @@ async function updateDnsRecord(
       name: domain_name,
       content: selectedIp,
     });
+    console.log(
+      `Created new record for IP: ${selectedIp} for domain ${domain_name}`
+    );
   } else if (record.content !== selectedIp) {
     console.log(
       `Updating record for ${domain_name} from ${record.content} to ${selectedIp}`
@@ -174,6 +177,9 @@ async function updateDnsRecord(
       column: "content",
       value: selectedIp,
     });
+    console.log(
+      `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
+    );
   } else {
     console.log(
       `Record for ${domain_name} already exists with correct IP: ${selectedIp}`
@@ -200,9 +206,7 @@ async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
     }
 
     let rootDomain = getRootDomain(domain_name);
-    console.log(
-      `[App: ${app_name}] Using app name as Root domain: ${rootDomain}`
-    );
+    console.log(`[App: ${app_name}]  Root domain: ${rootDomain}`);
 
     // Get or create zone
     const { data } = await api.post("", { action: "getZones" });
