@@ -206,7 +206,10 @@ async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
 
     // Get or create zone
     const { data } = await api.post("", { action: "getZones" });
-    const existingZone = data?.data?.find((z) => z.name === rootDomain);
+    let existingZone = null;
+    if (data.data) {
+      existingZone = data.data.find((z) => z.name === rootDomain);
+    }
 
     if (existingZone) {
       zone = existingZone.id;
