@@ -62,7 +62,7 @@ async function checkIP({ app_name, app_port, domain_names }) {
         app_name,
         app_port,
         healthyIps,
-        app_name // Using first domain for zone determination
+        domain_names[0] // Using first domain for zone determination
       );
 
       await processDomainNames(
