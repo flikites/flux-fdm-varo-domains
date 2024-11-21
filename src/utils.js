@@ -20,6 +20,17 @@ async function getFluxNodes() {
   }
 }
 
+async function getTlds() {
+  try {
+    const data = await fs.readFile(__dirname + "/tlds.txt", "utf8");
+    const lines = data.split("\n");
+    return lines.map((tld) => tld.trim().toLowerCase());
+  } catch (err) {
+    console.log(err);
+    return [];
+  }
+}
+
 function findMostCommonResponse(arr) {
   let subArrCount = {};
   let maxCount = 0;
@@ -81,5 +92,6 @@ module.exports = {
   findMostCommonResponse,
   checkConnection,
   getWorkingNodes,
+  getTlds,
   api,
 };

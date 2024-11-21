@@ -8,6 +8,7 @@ const {
   findMostCommonResponse,
   getWorkingNodes,
   checkConnection,
+  getTlds,
   api,
 } = require("./utils");
 
@@ -54,7 +55,11 @@ async function checkIP({ app_name, app_port, domain_name }) {
       return ip;
     });
 
-    const { records, zone } = await getZoneAndRecords(domain_name, app_port);
+    const { records, zone } = await getZoneAndRecords(
+      domain_name,
+      app_port,
+      app_name
+    );
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
     console.log("Flux Consensus IP list for app: ", commonIps);
@@ -80,7 +85,7 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Get the value of the environment variable (default to false if not set)
-  const apiCheckEnabled = process.env.API_CHECK_ENABLED === 'true';
+  const apiCheckEnabled = process.env.API_CHECK_ENABLED === "true";
 
   // Define a modular check for the API
   const checkIpWithApi = async (selectedIp) => {
@@ -153,75 +158,94 @@ async function createOrDeleteRecord(
   await handleDnsRecord(selectedIp, domain_name, zone_name);
 }
 
-async function getZoneAndRecords(name, port) {
+async function getZoneAndRecords(domain_name, port, app_name) {
   let zone = "";
   let records = [];
-  console.log("Processing DNS zone for name: ", name);
+  const ICANN_TLDS = await getTlds();
+  console.log(
+    `Processing DNS zone for app: ${app_name}, domain: ${domain_name}`
+  );
+
   try {
-    // Extract the effective TLD plus one (eTLD+1)
-    function getEffectiveTLDPlusOne(domain) {
-      const parts = domain.split('.');
-      if (parts.length < 2) {
-        return domain;
+    // Function to get the root domain based on ICANN status
+    function getRootDomain(domain) {
+      const parts = domain.split(".");
+      const tld = parts[parts.length - 1];
+
+      // Check if the TLD is in ICANN_TLDS
+      if (ICANN_TLDS.includes(tld)) {
+        // For ICANN TLDs, we need the last two parts (domain.tld)
+        if (parts.length < 2) return domain;
+        return parts.slice(-2).join(".");
+      } else {
+        // For non-ICANN TLDs, we just need the TLD
+        return tld;
       }
-      // For simplicity, take the last two parts
-      return parts.slice(-2).join('.');
     }
 
-    let domain = name;
-    let tld = getEffectiveTLDPlusOne(domain);
+    let rootDomain = getRootDomain(domain_name);
+    console.log(`Determined root domain: ${rootDomain} for ${domain_name}`);
 
-    // Fetch all zones first
+    // Fetch all zones
     const { data } = await api.post("", {
       action: "getZones",
     });
 
-    // Check if a zone for the TLD exists
-    const existingTldZone = data.data.find((z) => z.name === tld);
+    // Check if a zone for the root domain exists
+    const existingZone = data.data.find((z) => z.name === rootDomain);
 
-    if (existingTldZone) {
-      zone = existingTldZone.id;
-      console.log(`Zone for TLD ${tld} already exists: ${zone}`);
+    if (existingZone) {
+      zone = existingZone.id;
+      console.log(`Zone for root domain ${rootDomain} already exists: ${zone}`);
     } else {
-      // If no zone for the TLD exists, create a new zone
+      // Create new zone using the root domain
       const { data: newZoneData } = await api.post("", {
         action: "createZone",
-        domain: domain,
+        domain: rootDomain,
       });
       zone = newZoneData.data.zone;
-      console.log(`Zone created for domain ${domain}: ${zone}`);
+      console.log(`Zone created for root domain ${rootDomain}: ${zone}`);
     }
 
-    // Now, fetch the records associated with the found or created zone
+    // Fetch records for the zone
     const { data: recordsData } = await api.post("", {
       action: "getRecords",
       zone: zone,
     });
 
-    // Check the records and verify connectivity
+    // Check records and verify connectivity
     records = [];
     for (const record of recordsData.data ?? []) {
       try {
         await checkConnection(record.content, port);
         records.push(record);
       } catch (error) {
-        console.log(error);
-        console.log("Deleting IP from DNS server: ", record.content);
+        console.log(
+          `[App: ${app_name}] Connection check failed for IP ${record.content}`
+        );
+        console.log(
+          `[App: ${app_name}] Deleting IP ${record.content} from DNS zone ${rootDomain}`
+        );
         await api
           .post("", {
             action: "deleteRecord",
             zone: zone,
             record: record.uuid,
           })
-          .catch((e) => console.log(e?.message ?? e));
+          .catch((e) =>
+            console.log(
+              `[App: ${app_name}] Error deleting record: ${e?.message ?? e}`
+            )
+          );
       }
     }
 
     return { records, zone };
   } catch (error) {
     console.log(
-      "Unable to get or create zone or get DNS records: ",
-      error?.message ?? error
+      `[App: ${app_name}] Unable to get or create zone or get DNS records for ${domain_name}: ${
+        error?.message ?? error
+      }`
     );
     return { records, zone };
   }
