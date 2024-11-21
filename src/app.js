@@ -61,6 +61,7 @@ async function checkIP({ app_name, app_port, domain_name }) {
       app_name
     );
     console.log("app_name: ", app_name);
+    console.log("domain_name: ", domain_name);
     console.log("app_port: ", app_port);
     console.log("Flux Consensus IP list for app: ", commonIps);
     console.log("DNS server returned records: ", records);
@@ -84,6 +85,8 @@ async function createOrDeleteRecord(
   domain_name,
   zone_name
 ) {
+  // console.log("existing records");
+  // console.log(records);
   // Get the value of the environment variable (default to false if not set)
   const apiCheckEnabled = process.env.API_CHECK_ENABLED === "true";
 
@@ -130,13 +133,15 @@ async function createOrDeleteRecord(
         console.log(
           `Creating new record for IP: ${selectedIp} in VARO DNS Server`
         );
-        await api.post("", {
-          action: "addRecord",
-          zone: zone_name,
-          type: "A",
-          name: domain_name,
-          content: selectedIp,
-        });
+        await api
+          .post("", {
+            action: "addRecord",
+            zone: zone_name,
+            type: "A",
+            name: domain_name,
+            content: selectedIp,
+          })
+          .catch(console.error);
       } else {
         console.log(
           `Record for IP: ${selectedIp} already exists in VARO DNS Server`
@@ -190,14 +195,14 @@ async function getZoneAndRecords(domain_name, port, app_name) {
     const { data } = await api.post("", {
       action: "getZones",
     });
-
     // Check if a zone for the root domain exists
-    const existingZone = data.data.find((z) => z.name === rootDomain);
+    const existingZone = data?.data?.find?.((z) => z.name === rootDomain);
 
     if (existingZone) {
       zone = existingZone.id;
       console.log(`Zone for root domain ${rootDomain} already exists: ${zone}`);
     } else {
+      console.log(`we have not found any zone for root domain: ${rootDomain}`);
       // Create new zone using the root domain
       const { data: newZoneData } = await api.post("", {
         action: "createZone",
