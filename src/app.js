@@ -58,20 +58,7 @@ async function checkIP({ app_name, app_port, domain_names }) {
     console.log(`[App: ${app_name}] Healthy IPs: `, healthyIps);
 
     if (healthyIps?.length) {
-      const { records, zone } = await getZoneAndRecords(
-        app_name,
-        app_port,
-        healthyIps,
-        domain_names[0] // Using first domain for zone determination
-      );
-
-      await processDomainNames(
-        domain_names,
-        healthyIps,
-        records,
-        zone,
-        app_port
-      );
+      await processDomainNames(app_name, app_port, domain_names, healthyIps);
     } else {
       console.log(`[App: ${app_name}] No healthy IPs found. Exiting.`);
     }
@@ -125,13 +112,18 @@ async function checkIpQuality(ip) {
 }
 
 async function processDomainNames(
+  app_name,
+  app_port,
   domain_names,
-  healthyIps,
-  records,
-  zone,
-  app_port
+  healthyIps
 ) {
   for (const [index, domainName] of domain_names.entries()) {
+    const { records, zone } = await getZoneAndRecords(
+      app_name,
+      app_port,
+      healthyIps,
+      domainName // Using first domain for zone determination
+    );
     const ip = index < healthyIps.length ? healthyIps[index] : healthyIps[0];
     try {
       await updateDnsRecord(ip, records, domainName, zone, app_port);
