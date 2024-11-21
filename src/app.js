@@ -1,7 +1,9 @@
 const dotenv = require("dotenv");
 dotenv.config();
 const axios = require("axios");
+const https = require("https");
 
+// Assuming that these utility functions are correctly defined in './utils'
 const {
   findMostCommonResponse,
   getWorkingNodes,
@@ -9,22 +11,30 @@ const {
   api,
 } = require("./utils");
 
+const agent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+const axiosInstance = axios.create({
+  httpsAgent: agent,
+});
+
 async function checkIP({ app_name, app_port, domain_name }) {
   try {
-    // Select 5 random URLs
+    // Select working nodes
     const randomFluxNodes = await getWorkingNodes();
 
     const randomUrls = randomFluxNodes.map(
-      (ip) => `http://${ip}:16127/apps/location/${app_name}`
+      (ip) => `https://${ip}:16128/apps/location/${app_name}`
     );
 
     const requests = randomUrls.map((url) =>
-      axios.get(url).catch((error) => {
+      axiosInstance.get(url).catch((error) => {
         console.log(`Error while making request to ${url}: ${error}`);
       })
     );
 
-    const responses = await axios.all(requests).catch((error) => {
+    const responses = await Promise.all(requests).catch((error) => {
       console.log(`Error while making concurrent requests: ${error}`);
     });
 
@@ -36,7 +46,7 @@ async function checkIP({ app_name, app_port, domain_name }) {
       }
     }
 
-    // Find the most common IP
+    // Find the most common IPs
     const commonIps = findMostCommonResponse(responseData).map((ip) => {
       if (ip.includes(":")) {
         return ip.split(":")[0];
@@ -47,8 +57,8 @@ async function checkIP({ app_name, app_port, domain_name }) {
     const { records, zone } = await getZoneAndRecords(domain_name, app_port);
     console.log("app_name: ", app_name);
     console.log("app_port: ", app_port);
-    console.log("flux Consensus Ip list for app: ", commonIps);
-    console.log("dns server returned records: ", records);
+    console.log("Flux Consensus IP list for app: ", commonIps);
+    console.log("DNS server returned records: ", records);
 
     for (const ip of commonIps) {
       try {
@@ -70,13 +80,13 @@ async function createOrDeleteRecord(
   zone_name
 ) {
   // Get the value of the environment variable (default to false if not set)
-  const apiCheckEnabled = process.env.API_CHECK_ENABLED !== 'false';
+  const apiCheckEnabled = process.env.API_CHECK_ENABLED === 'true';
 
   // Define a modular check for the API
   const checkIpWithApi = async (selectedIp) => {
     if (apiCheckEnabled) {
       // Only call the API if the environment variable is true
-      const { data: r2 } = await axios.get(
+      const { data: r2 } = await axiosInstance.get(
         `https://api.incolumitas.com/?q=${selectedIp}`
       );
 
@@ -89,13 +99,13 @@ async function createOrDeleteRecord(
         r2?.is_abuser
       ) {
         isGood = false;
-        console.log("bad user ip detected: ", selectedIp);
+        console.log("Bad user IP detected: ", selectedIp);
       }
 
-      return isGood;  // Return the result based on the API check
+      return isGood; // Return the result based on the API check
     } else {
       console.log("API check is disabled, proceeding without it.");
-      return true;  // If the check is disabled, consider the IP as good
+      return true; // If the check is disabled, consider the IP as good
     }
   };
 
@@ -135,8 +145,8 @@ async function createOrDeleteRecord(
           zone: zone_name,
           record: record.uuid,
         })
-        .catch((e) => console.log(e));
-      console.log(`IP: ${selectedIp} deleted `);
+        .catch((e) => console.log(e?.message ?? e));
+      console.log(`IP: ${selectedIp} deleted`);
     }
   };
 
@@ -146,11 +156,20 @@ async function createOrDeleteRecord(
 async function getZoneAndRecords(name, port) {
   let zone = "";
   let records = [];
-  console.log("processing dns zone for name: ", name);
+  console.log("Processing DNS zone for name: ", name);
   try {
-    // Extract the TLD part of the domain
+    // Extract the effective TLD plus one (eTLD+1)
+    function getEffectiveTLDPlusOne(domain) {
+      const parts = domain.split('.');
+      if (parts.length < 2) {
+        return domain;
+      }
+      // For simplicity, take the last two parts
+      return parts.slice(-2).join('.');
+    }
+
     let domain = name;
-    let tld = domain.split('.').pop();  // Get the last part after splitting by '.'
+    let tld = getEffectiveTLDPlusOne(domain);
 
     // Fetch all zones first
     const { data } = await api.post("", {
@@ -159,7 +178,7 @@ async function getZoneAndRecords(name, port) {
 
     // Check if a zone for the TLD exists
     const existingTldZone = data.data.find((z) => z.name === tld);
-    
+
     if (existingTldZone) {
       zone = existingTldZone.id;
       console.log(`Zone for TLD ${tld} already exists: ${zone}`);
@@ -187,14 +206,14 @@ async function getZoneAndRecords(name, port) {
         records.push(record);
       } catch (error) {
         console.log(error);
-        console.log("deleting ip from dns server ", record.content);
+        console.log("Deleting IP from DNS server: ", record.content);
         await api
           .post("", {
             action: "deleteRecord",
             zone: zone,
             record: record.uuid,
           })
-          .catch((e) => console.log(e?.message));
+          .catch((e) => console.log(e?.message ?? e));
       }
     }
 
@@ -202,7 +221,7 @@ async function getZoneAndRecords(name, port) {
   } catch (error) {
     console.log(
       "Unable to get or create zone or get DNS records: ",
-      error?.message
+      error?.message ?? error
     );
     return { records, zone };
   }
