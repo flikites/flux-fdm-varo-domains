@@ -166,7 +166,7 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
       const response = await api.post("", {
         action: "updateRecord",
         zone: zone_name,
-        record: record.id,
+        record: record.uuid,
         column: "content",
         value: selectedIp,
       });
@@ -227,7 +227,7 @@ async function getZoneAndRecords(app_name, port, domain_name) {
       });
       console.log("[create zone response");
       console.log(rs1.data);
-      zone = rs1.data.zone;
+      zone = rs1.data.data.zone;
       console.log(`Zone created: ${zone} for ${rootDomain}`);
     }
 
