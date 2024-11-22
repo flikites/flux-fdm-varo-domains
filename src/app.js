@@ -141,9 +141,9 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
     // If no record exists, create a new one
     if (!record) {
       console.log(
-        `Creating new record for IP: ${selectedIp} for domain ${domain_name}`
+        `[addRecord] Creating new record for IP: ${selectedIp} for domain ${domain_name}`
       );
-      await api.post("", {
+      const response = await api.post("", {
         action: "addRecord",
         zone: zone_name,
         type: "A",
@@ -153,6 +153,8 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
       console.log(
         `Created new record for IP: ${selectedIp} for domain ${domain_name}`
       );
+      console.log("server response");
+      console.log(response);
       return;
     }
 
@@ -161,7 +163,7 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
       console.log(
         `Updating record for ${domain_name} from ${record.content} to ${selectedIp} (current IP unhealthy)`
       );
-      await api.post("", {
+      const response = await api.post("", {
         action: "updateRecord",
         zone: zone_name,
         record: record.id,
@@ -171,6 +173,8 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
       console.log(
         `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
       );
+      console.log("[updateRecord] server response");
+      console.log(response);
     } else if (record.content !== selectedIp) {
       console.log(
         `Note: Current IP ${record.content} is healthy. New IP ${selectedIp} is available but not needed.`
