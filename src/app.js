@@ -154,7 +154,7 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
         `Created new record for IP: ${selectedIp} for domain ${domain_name}`
       );
       console.log("server response");
-      console.log(response);
+      console.log(response.data);
       return;
     }
 
@@ -174,7 +174,7 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
         `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
       );
       console.log("[updateRecord] server response");
-      console.log(response);
+      console.log(response.data);
     } else if (record.content !== selectedIp) {
       console.log(
         `Note: Current IP ${record.content} is healthy. New IP ${selectedIp} is available but not needed.`
@@ -221,11 +221,13 @@ async function getZoneAndRecords(app_name, port, domain_name) {
       zone = existingZone.id;
       console.log(`Zone exists: ${rootDomain}:${zone}`);
     } else {
-      const { data: newZoneData } = await api.post("", {
+      const rs1 = await api.post("", {
         action: "createZone",
         domain: rootDomain,
       });
-      zone = newZoneData.data.zone;
+      console.log("[create zone response");
+      console.log(rs1.data);
+      zone = rs1.data.zone;
       console.log(`Zone created: ${zone} for ${rootDomain}`);
     }
 

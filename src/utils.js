@@ -51,7 +51,7 @@ function findMostCommonResponse(arr) {
   return mostCommon;
 }
 
-function checkConnection(host, port, timeout = 3000) {
+async function checkConnection(host, port, timeout = 3000) {
   console.log(`Started TCP health check for ${host}:${port}`);
 
   return new Promise((resolve, reject) => {
