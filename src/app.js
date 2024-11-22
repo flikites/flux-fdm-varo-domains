@@ -121,12 +121,11 @@ async function processDomainNames(
     const { records, zone } = await getZoneAndRecords(
       app_name,
       app_port,
-      healthyIps,
       domainName // Using first domain for zone determination
     );
     const ip = index < healthyIps.length ? healthyIps[index] : healthyIps[0];
     try {
-      await updateDnsRecord(ip, records, domainName, zone, app_port);
+      await updateDnsRecord(ip, records, domainName, zone);
     } catch (error) {
       console.log(
         `Error processing domain ${domainName}: ${error?.message ?? error}`
@@ -135,51 +134,58 @@ async function processDomainNames(
   }
 }
 
-async function updateDnsRecord(
-  selectedIp,
-  records,
-  domain_name,
-  zone_name,
-  app_port
-) {
-  const record = records.find((r) => r.name === domain_name);
+async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
+  try {
+    const record = records.find((r) => r.name === domain_name);
 
-  if (!record) {
-    console.log(
-      `Creating new record for IP: ${selectedIp} for domain ${domain_name}`
-    );
-    await api.post("", {
-      action: "addRecord",
-      zone: zone_name,
-      type: "A",
-      name: domain_name,
-      content: selectedIp,
-    });
-    console.log(
-      `Created new record for IP: ${selectedIp} for domain ${domain_name}`
-    );
-  } else if (record.content !== selectedIp) {
-    console.log(
-      `Updating record for ${domain_name} from ${record.content} to ${selectedIp}`
-    );
-    await api.post("", {
-      action: "updateRecord",
-      zone: zone_name,
-      record: record.id,
-      column: "content",
-      value: selectedIp,
-    });
-    console.log(
-      `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
-    );
-  } else {
-    console.log(
-      `Record for ${domain_name} already exists with correct IP: ${selectedIp}`
-    );
+    // If no record exists, create a new one
+    if (!record) {
+      console.log(
+        `Creating new record for IP: ${selectedIp} for domain ${domain_name}`
+      );
+      await api.post("", {
+        action: "addRecord",
+        zone: zone_name,
+        type: "A",
+        name: domain_name,
+        content: selectedIp,
+      });
+      console.log(
+        `Created new record for IP: ${selectedIp} for domain ${domain_name}`
+      );
+      return;
+    }
+
+    // Use the health status that was already checked in getZoneAndRecords
+    if (!record.isHealthy) {
+      console.log(
+        `Updating record for ${domain_name} from ${record.content} to ${selectedIp} (current IP unhealthy)`
+      );
+      await api.post("", {
+        action: "updateRecord",
+        zone: zone_name,
+        record: record.id,
+        column: "content",
+        value: selectedIp,
+      });
+      console.log(
+        `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
+      );
+    } else if (record.content !== selectedIp) {
+      console.log(
+        `Note: Current IP ${record.content} is healthy. New IP ${selectedIp} is available but not needed.`
+      );
+    } else {
+      console.log(
+        `Record for ${domain_name} already exists with healthy IP: ${selectedIp}`
+      );
+    }
+  } catch (error) {
+    throw new Error(`Failed to update DNS record: ${error.message}`);
   }
 }
 
-async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
+async function getZoneAndRecords(app_name, port, domain_name) {
   let zone = "";
   let records = [];
   const ICANN_TLDS = await getTlds();
@@ -198,7 +204,7 @@ async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
     }
 
     let rootDomain = getRootDomain(domain_name);
-    console.log(`[App: ${app_name}]  Root domain: ${rootDomain}`);
+    console.log(`[App: ${app_name}] Root domain: ${rootDomain}`);
 
     // Get or create zone
     const { data } = await api.post("", { action: "getZones" });
@@ -219,21 +225,43 @@ async function getZoneAndRecords(app_name, port, healthyIps, domain_name) {
       console.log(`Zone created: ${zone} for ${rootDomain}`);
     }
 
-    // Get and verify records
+    // Get records and check their health
     const { data: recordsData } = await api.post("", {
       action: "getRecords",
       zone,
     });
 
-    records = (recordsData.data ?? []).filter(async (record) => {
+    // Check health of all records
+    const recordPromises = (recordsData.data ?? []).map(async (record) => {
       try {
         await checkConnection(record.content, port);
-        return true;
+
+        // Only check IP quality if API_CHECK_ENABLED is true
+        let isHealthy = true;
+        if (
+          process.env.API_CHECK_ENABLED === "true" ||
+          process.env.API_CHECK_ENABLED == true
+        ) {
+          const isGoodIp = await checkIpQuality(record.content);
+          isHealthy = isGoodIp;
+        }
+
+        return {
+          ...record,
+          isHealthy,
+        };
       } catch (error) {
-        console.log(`Bad record detected: ${record.content}`);
-        return false;
+        console.log(
+          `Bad record detected: ${record.content} - ${error.message}`
+        );
+        return {
+          ...record,
+          isHealthy: false,
+        };
       }
     });
+
+    records = await Promise.all(recordPromises);
 
     return { records, zone };
   } catch (error) {
