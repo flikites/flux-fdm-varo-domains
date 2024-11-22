@@ -119,7 +119,7 @@ async function createOrDeleteRecord(
 
   // Main logic for handling DNS records
   const handleDnsRecord = async (selectedIp, domain_name, zone_name) => {
-    const connected = await checkConnection(selectedIp, app_port);
+    const connected = (await checkConnection(selectedIp, app_port)) === true;
 
     // Use the modular API check here
     const isGood = await checkIpWithApi(selectedIp);
@@ -222,8 +222,27 @@ async function getZoneAndRecords(domain_name, port, app_name) {
     records = [];
     for (const record of recordsData.data ?? []) {
       try {
-        await checkConnection(record.content, port);
-        records.push(record);
+        if ((await checkConnection(record.content, port)) === true) {
+          records.push(record);
+        } else {
+          console.log(
+            `[App: ${app_name}] Connection check failed for IP ${record.content}`
+          );
+          console.log(
+            `[App: ${app_name}] Deleting IP ${record.content} from DNS zone ${rootDomain}`
+          );
+          await api
+            .post("", {
+              action: "deleteRecord",
+              zone: zone,
+              record: record.uuid,
+            })
+            .catch((e) =>
+              console.log(
+                `[App: ${app_name}] Error deleting record: ${e?.message ?? e}`
+              )
+            );
+        }
       } catch (error) {
         console.log(
           `[App: ${app_name}] Connection check failed for IP ${record.content}`
