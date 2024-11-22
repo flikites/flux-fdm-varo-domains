@@ -71,9 +71,9 @@ async function findHealthyIps(commonIps, app_port) {
   const healthyIps = [];
   for (const ip of commonIps) {
     try {
-      await checkConnection(ip, app_port);
+      const status = await checkConnection(ip, app_port);
       const isGoodIp = await checkIpQuality(ip);
-      if (isGoodIp) {
+      if (isGoodIp && status == true) {
         healthyIps.push(ip);
       }
     } catch (error) {
@@ -234,13 +234,13 @@ async function getZoneAndRecords(app_name, port, domain_name) {
     // Check health of all records
     const recordPromises = (recordsData.data ?? []).map(async (record) => {
       try {
-        await checkConnection(record.content, port);
-
+        let isHealthy = await checkConnection(record.content, port);
+        console.log("isHealthy ", isHealthy);
         // Only check IP quality if API_CHECK_ENABLED is true
-        let isHealthy = true;
+
         if (
           process.env.API_CHECK_ENABLED === "true" ||
-          process.env.API_CHECK_ENABLED == true
+          (process.env.API_CHECK_ENABLED == true && isHealthy === true)
         ) {
           const isGoodIp = await checkIpQuality(record.content);
           isHealthy = isGoodIp;

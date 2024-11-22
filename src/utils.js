@@ -52,20 +52,56 @@ function findMostCommonResponse(arr) {
 }
 
 function checkConnection(host, port, timeout = 3000) {
+  console.log(`Started TCP health check for ${host}:${port}`);
+
   return new Promise((resolve, reject) => {
     const client = new net.Socket();
+    let isConnectionClosed = false;
+
+    // Helper function to clean up connection
+    const cleanup = () => {
+      if (!isConnectionClosed) {
+        isConnectionClosed = true;
+        client.removeAllListeners(); // Remove all event listeners
+        client.destroy(); // Ensure socket is destroyed
+      }
+    };
+
+    // Set connection timeout
     client.setTimeout(timeout);
+
+    // Handle successful connection
     client.connect(port, host, () => {
-      client.end();
+      console.log(`[TCP success] ${host}:${port} is reachable`);
+      cleanup();
       resolve(true);
     });
+
+    // Handle connection error
     client.on("error", (error) => {
-      client.end();
-      reject(error);
+      console.log(`[TCP error] ${host}:${port} is unreachable:`, error.message);
+      cleanup();
+      reject(new Error(`TCP connection failed: ${error.message}`));
     });
+
+    // Handle timeout
     client.on("timeout", () => {
-      client.end();
-      reject(new Error(`Connection timed out after ${timeout} milliseconds`));
+      console.log(
+        `[TCP timeout] ${host}:${port} connection timed out after ${timeout}ms`
+      );
+      cleanup();
+      reject(new Error(`TCP connection timed out after ${timeout}ms`));
+    });
+
+    // Handle unexpected closing
+    client.on("close", () => {
+      if (!isConnectionClosed) {
+        console.log(
+          `[TCP closed] ${host}:${port} connection closed unexpectedly`
+        );
+        cleanup();
+        reject(new Error("Connection closed unexpectedly"));
+      }
     });
   });
 }
@@ -76,10 +112,13 @@ async function getWorkingNodes() {
   console.log("finding healthy flux nodes");
   for (const ip of fluxNodes) {
     try {
-      await checkConnection(ip, 16127);
-      activeIps.push(ip);
-      if (activeIps.length >= 5) {
-        return activeIps;
+      if (await checkConnection(ip, 16127)) {
+        activeIps.push(ip);
+        if (activeIps.length >= 5) {
+          return activeIps;
+        }
+      } else {
+        console.log(`avoiding bad flux node ${ip} tcp check failed`);
       }
     } catch (error) {
       console.log(`avoiding bad flux node ${ip} err: ${error?.message}`);
