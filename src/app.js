@@ -11,6 +11,16 @@ const {
   api,
 } = require("./utils");
 
+const logger = {
+  info: (component, message) => console.log(`[${component}] INFO: ${message}`),
+  error: (component, message) =>
+    console.error(`[${component}] ERROR: ${message}`),
+  warn: (component, message) =>
+    console.warn(`[${component}] WARNING: ${message}`),
+  debug: (component, message) =>
+    console.log(`[${component}] DEBUG: ${message}`),
+};
+
 const agent = new https.Agent({
   rejectUnauthorized: false,
 });
@@ -21,66 +31,107 @@ const axiosInstance = axios.create({
 
 async function checkIP({ app_name, app_port, domain_names }) {
   try {
-    // Select working nodes
-    const randomFluxNodes = await getWorkingNodes();
-    const randomUrls = randomFluxNodes.map(
-      (ip) => `https://${ip}:16128/apps/location/${app_name}`
-    );
+    // Try primary and backup endpoints first
+    const masterIP = await getMasterIP(app_name, app_port);
 
-    const requests = randomUrls.map((url) =>
-      axiosInstance.get(url).catch((error) => {
-        console.log(`Error while making request to ${url}: ${error}`);
-      })
-    );
-
-    const responses = await Promise.all(requests).catch((error) => {
-      console.log(`Error while making concurrent requests: ${error}`);
-    });
-
-    let responseData = [];
-    for (let i = 0; i < responses.length; i++) {
-      if (responses[i] && responses[i].data) {
-        const data = responses[i].data.data;
-        responseData.push(data.map((item) => item.ip));
-      }
-    }
-
-    // Find the most common IPs
-    const commonIps = findMostCommonResponse(responseData).map((ip) => {
-      if (ip.includes(":")) {
-        return ip.split(":")[0];
-      }
-      return ip;
-    });
-
-    // Find healthy IPs
-    const healthyIps = await findHealthyIps(commonIps, app_port);
-    console.log(`[App: ${app_name}] Healthy IPs: `, healthyIps);
-
-    if (healthyIps?.length) {
-      await processDomainNames(app_name, app_port, domain_names, healthyIps);
+    if (masterIP) {
+      console.log(
+        `found master ip for app ${app_name}, port: ${app_port}, master_ip: ${masterIP}`
+      );
+      await processDomainNames(app_name, app_port, domain_names, [masterIP]);
     } else {
-      console.log(`[App: ${app_name}] No healthy IPs found. Exiting.`);
+      // Fallback to getting IPs from nodes if endpoints fail
+      await fallbackToNodeIPs(app_name, app_port, domain_names);
     }
   } catch (error) {
     console.error(`[App: ${app_name}] Error: ${error?.message ?? error}`);
   }
 }
 
-async function findHealthyIps(commonIps, app_port) {
-  const healthyIps = [];
-  for (const ip of commonIps) {
+async function getMasterIP(app_name, app_port) {
+  try {
+    // Try primary endpoint
+    const primaryUrl = `https://${app_name}_${app_port}.app.runonflux.io/status`;
     try {
-      const status = await checkConnection(ip, app_port);
-      const isGoodIp = await checkIpQuality(ip);
-      if (isGoodIp && status == true) {
-        healthyIps.push(ip);
+      const response = await axiosInstance.get(primaryUrl);
+      if (response.data && response.data.masterIP) {
+        console.log(`Primary endpoint success: ${primaryUrl}`);
+        return response.data.masterIP;
       }
     } catch (error) {
-      console.log(`Excluding unhealthy IP: ${ip}`);
+      console.log(`Primary endpoint failed: ${error.message}`);
+      console.log(`primary url ${primaryUrl}`);
+    }
+
+    // Try backup endpoint
+    const backupUrl = `https://${app_name}_${app_port}.app2.runonflux.io/status`;
+    try {
+      const response = await axiosInstance.get(backupUrl);
+      if (response.data && response.data.masterIP) {
+        console.log(`Backup endpoint success: ${primaryUrl}`);
+        return response.data.masterIP;
+      }
+    } catch (error) {
+      console.log(`Backup endpoint failed: ${error.message}`);
+      console.log(`backup url ${backupUrl}`);
+    }
+
+    return null;
+  } catch (error) {
+    console.log(`Failed to get master IP: ${error.message}`);
+    return null;
+  }
+}
+
+async function fallbackToNodeIPs(app_name, app_port, domain_names) {
+  console.log("using fallback fallbackToNodeIPs");
+  // Select working nodes
+  const randomFluxNodes = await getWorkingNodes();
+  const randomUrls = randomFluxNodes.map(
+    (ip) => `https://${ip}:16128/apps/location/${app_name}`
+  );
+
+  const requests = randomUrls.map((url) =>
+    axiosInstance.get(url).catch((error) => {
+      console.log(`Error while making request to ${url}: ${error}`);
+    })
+  );
+
+  const responses = await Promise.all(requests);
+
+  let responseData = [];
+  for (let i = 0; i < responses.length; i++) {
+    if (responses[i] && responses[i].data) {
+      const data = responses[i].data.data;
+      responseData.push(data.map((item) => item.ip));
     }
   }
-  return healthyIps;
+
+  // Find the most common IPs
+  const commonIps = findMostCommonResponse(responseData).map((ip) => {
+    if (ip.includes(":")) {
+      return ip.split(":")[0];
+    }
+    return ip;
+  });
+
+  // Try to get master IP from each common IP
+  for (const ip of commonIps) {
+    try {
+      const response = await axios.get(`http://${ip}:${app_port}/status`);
+      if (response.data && response.data.masterIP) {
+        await processDomainNames(app_name, app_port, domain_names, [
+          response.data.masterIP,
+        ]);
+        console.log(`fallback master ip updated ${response.data.masterIP}`);
+        return;
+      }
+    } catch (error) {
+      console.log(
+        `Failed to get status from IP http://${ip}:${app_port}/status: ${error.message}`
+      );
+    }
+  }
 }
 
 async function checkIpQuality(ip) {
@@ -117,15 +168,14 @@ async function processDomainNames(
   domain_names,
   healthyIps
 ) {
-  for (const [index, domainName] of domain_names.entries()) {
+  for (const domainName of domain_names) {
     const { records, zone } = await getZoneAndRecords(
       app_name,
       app_port,
-      domainName // Using first domain for zone determination
+      domainName
     );
-    const ip = index < healthyIps.length ? healthyIps[index] : healthyIps[0];
     try {
-      await updateDnsRecord(ip, records, domainName, zone);
+      await updateDnsRecord(healthyIps[0], records, domainName, zone);
     } catch (error) {
       console.log(
         `Error processing domain ${domainName}: ${error?.message ?? error}`
@@ -135,13 +185,15 @@ async function processDomainNames(
 }
 
 async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
+  logger.info("DNS", `Processing DNS record update for domain: ${domain_name}`);
+
   try {
     const record = records.find((r) => r.name === domain_name);
 
-    // If no record exists, create a new one
     if (!record) {
-      console.log(
-        `[addRecord] Creating new record for IP: ${selectedIp} for domain ${domain_name}`
+      logger.info(
+        "DNS",
+        `Creating new DNS record for ${domain_name} with masterIP ${selectedIp}`
       );
       const response = await api.post("", {
         action: "addRecord",
@@ -150,42 +202,44 @@ async function updateDnsRecord(selectedIp, records, domain_name, zone_name) {
         name: domain_name,
         content: selectedIp,
       });
-      console.log(
-        `Created new record for IP: ${selectedIp} for domain ${domain_name}`
-      );
-      console.log("server response");
       console.log(response.data);
+      logger.info(
+        "DNS",
+        `Successfully created new DNS record for ${domain_name}`
+      );
       return;
     }
 
-    // Use the health status that was already checked in getZoneAndRecords
-    if (!record.isHealthy) {
-      console.log(
-        `Updating record for ${domain_name} from ${record.content} to ${selectedIp} (current IP unhealthy)`
+    if (record.content !== selectedIp) {
+      logger.info(
+        "DNS",
+        `Updating DNS record for ${domain_name} from ${record.content} to ${selectedIp}`
       );
       const response = await api.post("", {
         action: "updateRecord",
         zone: zone_name,
-        record: record.uuid,
-        column: "content",
-        value: selectedIp,
+        type: "A",
+        name: domain_name,
+        content: selectedIp,
+        id: record.uuid,
       });
-      console.log(
-        `Updated record for ${domain_name} from ${record.content} to ${selectedIp}`
-      );
-      console.log("[updateRecord] server response");
       console.log(response.data);
-    } else if (record.content !== selectedIp) {
-      console.log(
-        `Note: Current IP ${record.content} is healthy. New IP ${selectedIp} is available but not needed.`
+      logger.info(
+        "DNS",
+        `Successfully updated DNS record for ${domain_name} oldIP: ${record.content} new masterIP ${selectedIp}`
       );
     } else {
-      console.log(
-        `Record for ${domain_name} already exists with healthy IP: ${selectedIp}`
+      logger.info(
+        "DNS",
+        `No update needed for ${domain_name}, masterIP unchanged (${selectedIp})`
       );
     }
   } catch (error) {
-    throw new Error(`Failed to update DNS record: ${error.message}`);
+    logger.error(
+      "DNS",
+      `Failed to update DNS record for ${domain_name}: ${error.message}`
+    );
+    throw error;
   }
 }
 
