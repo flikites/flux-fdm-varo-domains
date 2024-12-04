@@ -27,7 +27,8 @@ Useful for running on Flux and using the Interactive terminals "Volume Browser" 
 
 `DNS_SERVER_ADDRESS` can be `https://varo.domains/api` or `https://varo/api` or `https://domains.hns.au/api` or [self host your own](https://github.com/Nathanwoodburn/HNS-server/tree/main/varo)
 
-```DNS_SERVER_API_KEY=secret
+```
+DNS_SERVER_API_KEY=secret
 DNS_SERVER_ADDRESS=https://varo.domains/api
 APP_NAME=testywp
 APP_PORT=32594
