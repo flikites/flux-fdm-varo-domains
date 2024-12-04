@@ -34,3 +34,14 @@ APP_NAME=wordpress1726249800818
 APP_PORT=31502
 DOMAIN_NAME=wordpress.fluxos
 ```
+
+
+## Run On Flux
+
+Navigate to `https:/home.runonflux.io/apps/registerapp` and click the import button.
+
+Paste the below and click import. Change the app name and follow prompts to sign and pay.
+
+```
+{"name":"changeme","compose":[{"name":"ddns","description":"","repotag":"wirewrex/flux-dns-fdm:wordpress","ports":[],"domains":[],"environmentParameters":[],"commands":[],"containerPorts":[],"containerData":"g:/tmp","cpu":0.1,"ram":100,"hdd":1,"tiered":false,"secrets":"","repoauth":""}],"contacts":[],"description":"ENVs (you can sideload using interactive terminal); \nDNS_SERVER_API_KEY=secret\nDNS_SERVER_ADDRESS=https://varo.domains/api\nAPP_NAME=wordpress1726249800818\nAPP_PORT=31502\nDOMAIN_NAME=icann.handshake","expire":132000,"geolocation":["acNA"],"hash":"ef4f3acd96e10724fa19841a5c1cdf666f1e378599034d806b962a5a1b3786b0","height":1787714,"instances":3,"nodes":[],"owner":"14QJfVTFQdb34kw9MiAfW4apXgrcyULoEB","staticip":false,"version":7}
+```
