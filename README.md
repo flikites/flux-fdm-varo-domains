@@ -21,7 +21,7 @@ Useful for running on Flux and using the Interactive terminals "Volume Browser" 
 
 `APP_NAME` must be the name of a wordpress app that is running on Flux that uses the `operator` component alongside the `mysql` component.
 
-`APP_PORT` is going to be the `Port` on your Flux deployment that corresponds to the `Container Port` of `8008` on the `operator component.
+`APP_PORT` is going to be the `Port` on your Flux deployment that corresponds to the `Container Port` of `8008` on the `operator` component.
 
 `DNS_SERVER_API_KEY` can be obtained from the `Settings` section while logged into `https://varo.domains` or `https://varo` on [Handshake](https://handshake.org)
 
