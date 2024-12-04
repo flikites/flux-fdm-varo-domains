@@ -10,7 +10,7 @@
 
 ### Run Container
 
-`docker run --name flux-fdm-varo-wordpress --env-file=.env whatever/you:want`
+`docker run --name flux-fdm-varo-wordpress --env-file=.env wirewrex/flux-dns-fdm:wordpress`
 
 You can side load the .env file to the `/tmp` folder, it will attempt to load them before starting the app. 
 
@@ -30,7 +30,7 @@ Useful for running on Flux and using the Interactive terminals "Volume Browser" 
 ```
 DNS_SERVER_API_KEY=secret
 DNS_SERVER_ADDRESS=https://varo.domains/api
-APP_NAME=testywp
-APP_PORT=32594
+APP_NAME=wordpress1726249800818
+APP_PORT=31502
 DOMAIN_NAME=wordpress.fluxos
 ```
